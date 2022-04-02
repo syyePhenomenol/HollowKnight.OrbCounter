@@ -4,18 +4,22 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using Vasi;
 
-namespace HollowKnight.OrbCounter
+namespace OrbTracker
 {
-    public class OrbCounter : Mod, IMenuMod, ITogglableMod
+    public class OrbTracker : Mod, IMenuMod, ITogglableMod
     { 
-        public override string GetVersion() => "1.0.1";
+        public override string GetVersion() => "1.1.0";
+
+        internal static OrbTracker Instance;
 
         public bool ToggleButtonInsideMenu => true;
 
         private static readonly FieldInfo spawnedOrbs = typeof(DreamPlant).GetField("spawnedOrbs", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo pickedUp = typeof(DreamPlantOrb).GetField("pickedUp", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo isActive = typeof(DreamPlantOrb).GetField("isActive", BindingFlags.Instance | BindingFlags.NonPublic);
 
         private static bool orbPickedUp = false;
 
@@ -28,6 +32,8 @@ namespace HollowKnight.OrbCounter
 
         public override void Initialize()
         {
+            Instance = this;
+
             // If mod is enabled during the game for the first time
             if (GameManager.instance.IsGameplayScene())
             {
@@ -37,19 +43,82 @@ namespace HollowKnight.OrbCounter
                 {
                     counterFSM.GetState("Update").InsertAction(2, new AddOrbCounter(counterFSM));
                 }
+
+                CreateDirectionalCompass();
+
+                if (Object.FindObjectsOfType<DreamPlantOrb>().Any(o => (bool)isActive.GetValue(o)))
+                {
+                    ActivateDirectionalCompass();
+                }
             }
 
+            //On.DreamPlant.OnTriggerEnter2D += DreamPlant_OnTriggerEnter2D;
+            UnityEngine.SceneManagement.SceneManager.activeSceneChanged += SceneManager_activeSceneChanged;
+            On.DreamPlantOrb.SetActive += DreamPlantOrb_SetActive;
             On.DreamPlantOrb.OnTriggerEnter2D += DreamPlantOrb_OnTriggerEnter2D;
             On.PlayMakerFSM.OnEnable += PlayMakerFSM_OnEnable;
         }
 
         public void Unload()
         {
+            HeroController.instance?.GetComponent<DirectionalCompass>()?.Destroy();
+
+            //On.DreamPlant.OnTriggerEnter2D -= DreamPlant_OnTriggerEnter2D;
+            UnityEngine.SceneManagement.SceneManager.activeSceneChanged -= SceneManager_activeSceneChanged;
+            On.DreamPlantOrb.SetActive -= DreamPlantOrb_SetActive;
             On.DreamPlantOrb.OnTriggerEnter2D -= DreamPlantOrb_OnTriggerEnter2D;
             On.PlayMakerFSM.OnEnable -= PlayMakerFSM_OnEnable;
         }
 
-        private void DreamPlantOrb_OnTriggerEnter2D(On.DreamPlantOrb.orig_OnTriggerEnter2D orig, DreamPlantOrb self, UnityEngine.Collider2D collision)
+        private void DreamPlantOrb_SetActive(On.DreamPlantOrb.orig_SetActive orig, DreamPlantOrb self, bool value)
+        {
+            orig(self, value);
+
+            if (value)
+            {
+                ActivateDirectionalCompass();
+            }
+        }
+
+        private void SceneManager_activeSceneChanged(Scene from, Scene to)
+        {
+            CreateDirectionalCompass();
+        }
+
+        private void CreateDirectionalCompass()
+        {
+            GameObject knight = HeroController.instance?.gameObject;
+
+            if (knight != null)
+            {
+                HeroController.instance?.GetComponent<DirectionalCompass>()?.Destroy();
+
+                DirectionalCompass compassC = knight.AddComponent<DirectionalCompass>();
+                compassC.trackedObjects = new(Object.FindObjectsOfType<DreamPlantOrb>().Where(o => !(bool)pickedUp.GetValue(o) && (bool)isActive.GetValue(o)).Select(o => o.gameObject));
+            }
+        }
+
+        private void RefreshTrackedOrbs()
+        {
+            DirectionalCompass compassC = HeroController.instance?.GetComponent<DirectionalCompass>();
+
+            if (compassC != null)
+            {
+                compassC.trackedObjects = new(Object.FindObjectsOfType<DreamPlantOrb>().Where(o => !(bool)pickedUp.GetValue(o) && (bool)isActive.GetValue(o)).Select(o => o.gameObject));
+            }
+        }
+
+        private void ActivateDirectionalCompass()
+        {
+            DirectionalCompass compassC = HeroController.instance?.GetComponent<DirectionalCompass>();
+
+            if (compassC != null)
+            {
+                compassC.active = true;
+            }
+        }
+
+        private void DreamPlantOrb_OnTriggerEnter2D(On.DreamPlantOrb.orig_OnTriggerEnter2D orig, DreamPlantOrb self, Collider2D collision)
         {
             if (!(bool) pickedUp.GetValue(self) && collision.tag == "Player")
             {
@@ -57,6 +126,11 @@ namespace HollowKnight.OrbCounter
             }
 
             orig(self, collision);
+
+            if (collision.tag == "Player")
+            {
+                RefreshTrackedOrbs();
+            }
         }
 
         private void PlayMakerFSM_OnEnable(On.PlayMakerFSM.orig_OnEnable orig, PlayMakerFSM self)

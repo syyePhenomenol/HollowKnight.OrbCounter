@@ -35,6 +35,14 @@
 		<WriteLinesToFile File="$(ExportDir)/$(TargetName)/version.txt" Lines="@(VersionNumber)" Overwrite="true" Encoding="UTF-8" />
 	</Target>
   
+  	<ItemGroup>
+  	  <None Remove="Resources\arrow.png" />
+  	</ItemGroup>
+  
+  	<ItemGroup>
+  	  <EmbeddedResource Include="Resources\arrow.png" />
+  	</ItemGroup>
+  
 	<ItemGroup>
 	<Reference Include="Assembly-CSharp">
 	  <HintPath>$(HollowKnightRefs)\Assembly-CSharp.dll</HintPath>
@@ -63,6 +71,9 @@
 	<Reference Include="UnityEngine.CoreModule">
 	  <HintPath>$(HollowKnightRefs)\UnityEngine.CoreModule.dll</HintPath>
 	  <CopyLocal>False</CopyLocal>
+	</Reference>
+	<Reference Include="UnityEngine.ImageConversionModule">
+	  <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Hollow Knight\hollow_knight_Data\Managed\UnityEngine.ImageConversionModule.dll</HintPath>
 	</Reference>
 	<Reference Include="UnityEngine.Physics2DModule">
 	  <HintPath>$(HollowKnightRefs)\UnityEngine.Physics2DModule.dll</HintPath>
