@@ -7,87 +7,90 @@ namespace OrbTracker
 {
     internal class DirectionalCompass : MonoBehaviour
     {
-        public GameObject compass;
+        private GameObject compassInternal;
+        private GameObject entity;
 
-        public bool active = false;
+        private Func<bool> Condition;
 
-        public float radius = 1.5f;
+        private float radius;
 
         public List<GameObject> trackedObjects;
 
-        public void Start()
+        public static GameObject Create(string name, GameObject entity, Sprite sprite, float radius, float scale, Func<bool> condition)
         {
-            compass = new("Directional Compass", typeof(SpriteRenderer));
-
-            compass.layer = 18;
-
+            // This object is a container for the script. Can be set active/inactive externally to control script
+            GameObject compass = new(name, typeof(SpriteRenderer));
             DontDestroyOnLoad(compass);
 
-            SpriteRenderer sr = compass.GetComponent<SpriteRenderer>();
+            compass.transform.parent = entity.transform;
 
-            sr.sprite = SpriteManager.Instance.GetSprite("arrow");
+            DirectionalCompass dc = compass.AddComponent<DirectionalCompass>();
 
-            compass.transform.parent = transform;
-            compass.transform.localScale = Vector3.one * 2.0f;
+            // This object is the actual compass sprite. Set active/inactive by the script itself
+            dc.compassInternal = new(name + " Internal", typeof(SpriteRenderer));
+            DontDestroyOnLoad(dc.compassInternal);
+            dc.compassInternal.layer = 18;
+
+            SpriteRenderer sr = dc.compassInternal.GetComponent<SpriteRenderer>();
+            sr.sprite = sprite;
+
+            dc.compassInternal.transform.parent = compass.transform;
+            dc.compassInternal.transform.localScale = Vector3.one * scale;
+
+            dc.entity = entity;
+            dc.radius = radius;
+            dc.Condition = condition;
+
+            return compass;
+        }
+
+        public void Destroy()
+        {
+            Destroy(compassInternal);
+            Destroy(gameObject);
         }
 
         public void Update()
         {
-            try
+            if (entity != null && Condition() && TryGetClosestObject(out GameObject o))
             {
-                if (active && TryGetClosestObject(out GameObject o))
-                {
-                    Vector3 dir = o.transform.position - transform.position;
+                Vector3 dir = o.transform.position - entity.transform.position;
 
-                    float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
+                float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
 
-                    if (HeroController.instance.GetCState("facingRight"))
-                    {
-                        dir.x = -dir.x;
-                    }
+                // Reverse the reflection caused by facing right
+                dir.x *= entity.transform.localScale.x;
 
-                    compass.transform.localPosition = Vector3.ClampMagnitude(dir, radius);
+                transform.localPosition = Vector3.ClampMagnitude(dir, radius);
+                transform.eulerAngles = new(0, 0, angle - 90);
 
-                    compass.transform.eulerAngles = new(0, 0, angle - 90);
-
-                    compass.SetActive(true);
-                }
-                else
-                {
-                    compass.SetActive(false);
-                }
+                compassInternal.SetActive(true);
             }
-            catch (Exception e)
+            else
             {
-                OrbTracker.Instance.LogError(e);
+                compassInternal.SetActive(false);
             }
         }
 
         private bool TryGetClosestObject(out GameObject o)
         {
-            if (trackedObjects == null || !trackedObjects.Any())
+            if (trackedObjects == null || !trackedObjects.Any() || entity == null)
             {
                 o = null;
 
                 return false;
             }
 
-            o =  trackedObjects.Aggregate((i1, i2) => SqrDistanceFromKnight(i1) < SqrDistanceFromKnight(i2) ? i1 : i2);
+            o =  trackedObjects.Aggregate((i1, i2) => SqrDistanceFromEntity(i1) < SqrDistanceFromEntity(i2) ? i1 : i2);
             
             return o != null;
         }
 
-        private float SqrDistanceFromKnight(GameObject o)
+        private float SqrDistanceFromEntity(GameObject o)
         {
-            if (o == null) return 9999f;
+            if (o == null || entity == null) return 9999f;
 
-            return (o.transform.position - transform.position).sqrMagnitude;
-        }
-
-        public void Destroy()
-        {
-            Destroy(compass);
-            Destroy(this);
+            return (o.transform.position - entity.transform.position).sqrMagnitude;
         }
     }
 }

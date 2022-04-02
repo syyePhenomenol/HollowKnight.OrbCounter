@@ -9,13 +9,15 @@ using Vasi;
 
 namespace OrbTracker
 {
-    public class OrbTracker : Mod, IMenuMod, ITogglableMod
+    public class OrbTracker : Mod, IMenuMod, IGlobalSettings<GlobalSettings>
     { 
-        public override string GetVersion() => "1.1.0";
+        public override string GetVersion() => "1.1.1";
 
         internal static OrbTracker Instance;
-
-        public bool ToggleButtonInsideMenu => true;
+        public static GlobalSettings GS { get; set; } = new GlobalSettings();
+        public void OnLoadGlobal(GlobalSettings gs) => GS = gs;
+        public GlobalSettings OnSaveGlobal() => GS;
+        public bool ToggleButtonInsideMenu => false;
 
         private static readonly FieldInfo spawnedOrbs = typeof(DreamPlant).GetField("spawnedOrbs", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo pickedUp = typeof(DreamPlantOrb).GetField("pickedUp", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -23,98 +25,74 @@ namespace OrbTracker
 
         private static bool orbPickedUp = false;
 
+        private GameObject compass;
+        private DirectionalCompass CompassC => compass?.GetComponent<DirectionalCompass>();
+        private GameObject Knight => HeroController.instance?.gameObject;
+
         public List<IMenuMod.MenuEntry> GetMenuData(IMenuMod.MenuEntry? toggleButtonEntry)
         {
-            IMenuMod.MenuEntry e = toggleButtonEntry.Value;
+            return new()
+            {
+                new()
+                {
+                    Name = "Toggle Counter",
+                    Description = "",
+                    Values = new string[] { "Off", "On" },
+                    Saver = opt => GS.EnableCounter = !GS.EnableCounter,
+                    Loader = () => GS.EnableCounter ? 1 : 0
+                },
 
-            return new() { new(e.Name, e.Values, "", e.Saver, e.Loader) };
+                new()
+                {
+                    Name = "Toggle Compass",
+                    Description = "",
+                    Values = new string[] { "Off", "On" },
+                    Saver = opt => GS.EnableCompass = !GS.EnableCompass,
+                    Loader = () => GS.EnableCompass ? 1 : 0
+                }
+            };
         }
 
         public override void Initialize()
         {
             Instance = this;
 
-            // If mod is enabled during the game for the first time
-            if (GameManager.instance.IsGameplayScene())
-            {
-                PlayMakerFSM counterFSM = Resources.FindObjectsOfTypeAll<GameObject>().Where(obj => obj.name == "Dream Nail").FirstOrDefault(obj => obj.LocateMyFSM("Control") != null).LocateMyFSM("Control");
-                
-                if (counterFSM != null && counterFSM.GetState("Update").Actions.Count() == 3)
-                {
-                    counterFSM.GetState("Update").InsertAction(2, new AddOrbCounter(counterFSM));
-                }
-
-                CreateDirectionalCompass();
-
-                if (Object.FindObjectsOfType<DreamPlantOrb>().Any(o => (bool)isActive.GetValue(o)))
-                {
-                    ActivateDirectionalCompass();
-                }
-            }
-
-            //On.DreamPlant.OnTriggerEnter2D += DreamPlant_OnTriggerEnter2D;
             UnityEngine.SceneManagement.SceneManager.activeSceneChanged += SceneManager_activeSceneChanged;
             On.DreamPlantOrb.SetActive += DreamPlantOrb_SetActive;
             On.DreamPlantOrb.OnTriggerEnter2D += DreamPlantOrb_OnTriggerEnter2D;
             On.PlayMakerFSM.OnEnable += PlayMakerFSM_OnEnable;
         }
 
-        public void Unload()
+        // Destroy/create a new compass. In my case I don't want the compass to be initially visible
+        private void SceneManager_activeSceneChanged(Scene from, Scene to)
         {
-            HeroController.instance?.GetComponent<DirectionalCompass>()?.Destroy();
+            if (Knight == null) return;
 
-            //On.DreamPlant.OnTriggerEnter2D -= DreamPlant_OnTriggerEnter2D;
-            UnityEngine.SceneManagement.SceneManager.activeSceneChanged -= SceneManager_activeSceneChanged;
-            On.DreamPlantOrb.SetActive -= DreamPlantOrb_SetActive;
-            On.DreamPlantOrb.OnTriggerEnter2D -= DreamPlantOrb_OnTriggerEnter2D;
-            On.PlayMakerFSM.OnEnable -= PlayMakerFSM_OnEnable;
+            compass?.GetComponent<DirectionalCompass>()?.Destroy();
+
+            compass = DirectionalCompass.Create
+            (
+                "Orb Compass", // name
+                Knight, // parent entity
+                SpriteManager.Instance.GetSprite("arrow"), // sprite
+                1.5f, // radius
+                2.0f, // scale
+                IsCompassEnabled // bool condition
+            );
+
+            compass?.SetActive(false);
         }
 
+        // Activate/deactivate/update the compass based on something that occurs in-scene
         private void DreamPlantOrb_SetActive(On.DreamPlantOrb.orig_SetActive orig, DreamPlantOrb self, bool value)
         {
             orig(self, value);
 
             if (value)
             {
-                ActivateDirectionalCompass();
-            }
-        }
+                compass?.SetActive(true);
 
-        private void SceneManager_activeSceneChanged(Scene from, Scene to)
-        {
-            CreateDirectionalCompass();
-        }
-
-        private void CreateDirectionalCompass()
-        {
-            GameObject knight = HeroController.instance?.gameObject;
-
-            if (knight != null)
-            {
-                HeroController.instance?.GetComponent<DirectionalCompass>()?.Destroy();
-
-                DirectionalCompass compassC = knight.AddComponent<DirectionalCompass>();
-                compassC.trackedObjects = new(Object.FindObjectsOfType<DreamPlantOrb>().Where(o => !(bool)pickedUp.GetValue(o) && (bool)isActive.GetValue(o)).Select(o => o.gameObject));
-            }
-        }
-
-        private void RefreshTrackedOrbs()
-        {
-            DirectionalCompass compassC = HeroController.instance?.GetComponent<DirectionalCompass>();
-
-            if (compassC != null)
-            {
-                compassC.trackedObjects = new(Object.FindObjectsOfType<DreamPlantOrb>().Where(o => !(bool)pickedUp.GetValue(o) && (bool)isActive.GetValue(o)).Select(o => o.gameObject));
-            }
-        }
-
-        private void ActivateDirectionalCompass()
-        {
-            DirectionalCompass compassC = HeroController.instance?.GetComponent<DirectionalCompass>();
-
-            if (compassC != null)
-            {
-                compassC.active = true;
+                UpdateCompass();
             }
         }
 
@@ -129,7 +107,28 @@ namespace OrbTracker
 
             if (collision.tag == "Player")
             {
-                RefreshTrackedOrbs();
+                UpdateCompass();
+            }
+        }
+
+        // A bool condition you can pass to DirectionalCompass. Here it is a global setting
+        public bool IsCompassEnabled()
+        {
+            return GS.EnableCompass;
+        }
+
+        // You will need to manually pass the list of tracked objects
+        public void UpdateCompass()
+        {
+            List<GameObject> trackedObjects = new(Object.FindObjectsOfType<DreamPlantOrb>().Where(o => !(bool)pickedUp.GetValue(o) && (bool)isActive.GetValue(o)).Select(o => o.gameObject));
+
+            if (CompassC != null && trackedObjects.Any())
+            {
+                CompassC.trackedObjects = trackedObjects;
+            }
+            else
+            {
+                compass?.SetActive(false);
             }
         }
 
@@ -160,7 +159,7 @@ namespace OrbTracker
 
                 DreamPlant plant = Object.FindObjectOfType<DreamPlant>();
 
-                if (orbPickedUp && orbs.Count() > 0 && plant != null)
+                if (GS.EnableCounter && orbPickedUp && orbs.Count() > 0 && plant != null)
                 {
                     int remainingOrbs = (int) spawnedOrbs.GetValue(plant) - 1;
 
@@ -175,5 +174,11 @@ namespace OrbTracker
                 Finish();
             }
         }
+    }
+
+    public class GlobalSettings
+    {
+        public bool EnableCounter = true;
+        public bool EnableCompass = true;
     }
 }
