@@ -1,2 +1,2 @@
-# Orb Counter
-Simple Hollow Knight mod that shows a counter for the orbs collected for a Whispering Root.
+# Orb Tracker
+Hollow Knight mod that shows how many Whispering Root orbs are left to collect, and points an arrow to the nearest one.
