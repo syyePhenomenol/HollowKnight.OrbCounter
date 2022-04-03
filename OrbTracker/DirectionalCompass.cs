@@ -14,9 +14,17 @@ namespace OrbTracker
 
         private float radius;
 
+        private bool lerp;
+        private float lerpDuration;
+
+        private float lerpStartTime;
+        private GameObject currentTarget;
+        private Vector3 currentDir;
+        private float currentAngle;
+
         public List<GameObject> trackedObjects;
 
-        public static GameObject Create(string name, GameObject entity, Sprite sprite, float radius, float scale, Func<bool> condition)
+        public static GameObject Create(string name, GameObject entity, Sprite sprite, Color color, float radius, float scale, Func<bool> condition, bool lerp, float lerpDuration)
         {
             // This object is a container for the script. Can be set active/inactive externally to control script
             GameObject compass = new(name, typeof(SpriteRenderer));
@@ -33,6 +41,7 @@ namespace OrbTracker
 
             SpriteRenderer sr = dc.compassInternal.GetComponent<SpriteRenderer>();
             sr.sprite = sprite;
+            sr.color = color;
 
             dc.compassInternal.transform.parent = compass.transform;
             dc.compassInternal.transform.localScale = Vector3.one * scale;
@@ -40,6 +49,8 @@ namespace OrbTracker
             dc.entity = entity;
             dc.radius = radius;
             dc.Condition = condition;
+            dc.lerp = lerp;
+            dc.lerpDuration = lerpDuration;
 
             return compass;
         }
@@ -54,15 +65,39 @@ namespace OrbTracker
         {
             if (entity != null && Condition() && TryGetClosestObject(out GameObject o))
             {
-                Vector3 dir = o.transform.position - entity.transform.position;
+                Vector3 dir = (o.transform.position - entity.transform.position);
 
-                float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
+                dir.Scale(Vector3.one * 0.5f);
 
-                // Reverse the reflection caused by facing right
+                float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg - 90f;
+
+                // Clamp to radius
+                dir = Vector3.ClampMagnitude(dir, radius);
+
+                // Do lerp stuff
+                if (lerp)
+                {
+                    if (currentTarget == null || currentTarget != o)
+                    {
+                        currentTarget = o;
+                        lerpStartTime = Time.time;
+                    }
+                    
+                    if (Time.time - lerpStartTime < lerpDuration)
+                    {
+                        dir = Vector3.Lerp(currentDir, dir, (Time.time - lerpStartTime) / lerpDuration);
+                        angle = Mathf.LerpAngle(currentAngle, angle, (Time.time - lerpStartTime) / lerpDuration);
+                    }
+                }
+
+                currentDir = dir;
+                currentAngle = angle;
+
+                // Undo reflection when the entity is facing right
                 dir.x *= entity.transform.localScale.x;
 
-                transform.localPosition = Vector3.ClampMagnitude(dir, radius);
-                transform.eulerAngles = new(0, 0, angle - 90);
+                transform.localPosition = dir;
+                transform.eulerAngles = new(0, 0, angle);
 
                 compassInternal.SetActive(true);
             }

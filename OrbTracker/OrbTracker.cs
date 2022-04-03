@@ -11,7 +11,7 @@ namespace OrbTracker
 {
     public class OrbTracker : Mod, IMenuMod, IGlobalSettings<GlobalSettings>
     { 
-        public override string GetVersion() => "1.1.1";
+        public override string GetVersion() => "1.1.2";
 
         internal static OrbTracker Instance;
         public static GlobalSettings GS { get; set; } = new GlobalSettings();
@@ -75,10 +75,13 @@ namespace OrbTracker
                 "Orb Compass", // name
                 Knight, // parent entity
                 SpriteManager.Instance.GetSprite("arrow"), // sprite
+                new Vector4(210, 74, 111, 180) / 255f, // color
                 1.5f, // radius
                 2.0f, // scale
-                IsCompassEnabled // bool condition
-            );
+                IsCompassEnabled, // bool condition
+                true, // lerp
+                0.5f // lerp duration
+            );;
 
             compass?.SetActive(false);
         }
