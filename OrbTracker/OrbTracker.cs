@@ -75,7 +75,7 @@ namespace OrbTracker
                 "Orb Compass", // name
                 Knight, // parent entity
                 SpriteManager.Instance.GetSprite("arrow"), // sprite
-                new Vector4(210, 74, 111, 180) / 255f, // color
+                new Vector4(255, 0, 0, 127) / 255f, // color
                 1.5f, // radius
                 2.0f, // scale
                 IsCompassEnabled, // bool condition
