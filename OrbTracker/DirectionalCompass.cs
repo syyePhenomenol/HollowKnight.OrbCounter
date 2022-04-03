@@ -27,7 +27,7 @@ namespace OrbTracker
         public static GameObject Create(string name, GameObject entity, Sprite sprite, Color color, float radius, float scale, Func<bool> condition, bool lerp, float lerpDuration)
         {
             // This object is a container for the script. Can be set active/inactive externally to control script
-            GameObject compass = new(name, typeof(SpriteRenderer));
+            GameObject compass = new(name);
             DontDestroyOnLoad(compass);
 
             compass.transform.parent = entity.transform;

@@ -11,7 +11,7 @@ namespace OrbTracker
 {
     public class OrbTracker : Mod, IMenuMod, IGlobalSettings<GlobalSettings>
     { 
-        public override string GetVersion() => "1.1.2";
+        public override string GetVersion() => "1.1.3";
 
         internal static OrbTracker Instance;
         public static GlobalSettings GS { get; set; } = new GlobalSettings();
@@ -26,7 +26,7 @@ namespace OrbTracker
         private static bool orbPickedUp = false;
 
         private GameObject compass;
-        private DirectionalCompass CompassC => compass?.GetComponent<DirectionalCompass>();
+        private DirectionalCompass CompassC => compass.GetComponent<DirectionalCompass>();
         private GameObject Knight => HeroController.instance?.gameObject;
 
         public List<IMenuMod.MenuEntry> GetMenuData(IMenuMod.MenuEntry? toggleButtonEntry)
@@ -66,9 +66,9 @@ namespace OrbTracker
         // Destroy/create a new compass. In my case I don't want the compass to be initially visible
         private void SceneManager_activeSceneChanged(Scene from, Scene to)
         {
-            if (Knight == null) return;
+            if (compass != null && CompassC != null) CompassC.Destroy();
 
-            compass?.GetComponent<DirectionalCompass>()?.Destroy();
+            if (Knight == null) return;
 
             compass = DirectionalCompass.Create
             (
@@ -81,9 +81,10 @@ namespace OrbTracker
                 IsCompassEnabled, // bool condition
                 true, // lerp
                 0.5f // lerp duration
-            );;
+            );
 
-            compass?.SetActive(false);
+            compass.SetActive(false);
+            
         }
 
         // Activate/deactivate/update the compass based on something that occurs in-scene
@@ -91,9 +92,9 @@ namespace OrbTracker
         {
             orig(self, value);
 
-            if (value)
+            if (value && compass != null)
             {
-                compass?.SetActive(true);
+                compass.SetActive(true);
 
                 UpdateCompass();
             }
@@ -108,7 +109,7 @@ namespace OrbTracker
 
             orig(self, collision);
 
-            if (collision.tag == "Player")
+            if (collision.tag == "Player" && compass != null)
             {
                 UpdateCompass();
             }
@@ -123,7 +124,7 @@ namespace OrbTracker
         // You will need to manually pass the list of tracked objects
         public void UpdateCompass()
         {
-            List<GameObject> trackedObjects = new(Object.FindObjectsOfType<DreamPlantOrb>().Where(o => !(bool)pickedUp.GetValue(o) && (bool)isActive.GetValue(o)).Select(o => o.gameObject));
+            List<GameObject> trackedObjects = new(UnityEngine.Object.FindObjectsOfType<DreamPlantOrb>().Where(o => !(bool)pickedUp.GetValue(o) && (bool)isActive.GetValue(o)).Select(o => o.gameObject));
 
             if (CompassC != null && trackedObjects.Any())
             {
@@ -131,7 +132,7 @@ namespace OrbTracker
             }
             else
             {
-                compass?.SetActive(false);
+                compass.SetActive(false);
             }
         }
 
@@ -158,9 +159,9 @@ namespace OrbTracker
             {
                 FsmString text = _self.FsmVariables.StringVariables.FirstOrDefault(x => x.Name == "Orbs String");
 
-                DreamPlantOrb[] orbs = Object.FindObjectsOfType<DreamPlantOrb>();
+                DreamPlantOrb[] orbs = UnityEngine.Object.FindObjectsOfType<DreamPlantOrb>();
 
-                DreamPlant plant = Object.FindObjectOfType<DreamPlant>();
+                DreamPlant plant = UnityEngine.Object.FindObjectOfType<DreamPlant>();
 
                 if (GS.EnableCounter && orbPickedUp && orbs.Count() > 0 && plant != null)
                 {
