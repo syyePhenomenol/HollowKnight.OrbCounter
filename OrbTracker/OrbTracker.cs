@@ -11,7 +11,7 @@ namespace OrbTracker
 {
     public class OrbTracker : Mod, IMenuMod, IGlobalSettings<GlobalSettings>
     { 
-        public override string GetVersion() => "1.1.3";
+        public override string GetVersion() => "1.1.4";
 
         internal static OrbTracker Instance;
         public static GlobalSettings GS { get; set; } = new GlobalSettings();

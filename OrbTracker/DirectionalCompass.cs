@@ -7,8 +7,11 @@ namespace OrbTracker
 {
     internal class DirectionalCompass : MonoBehaviour
     {
-        private GameObject compassInternal;
         private GameObject entity;
+
+        private GameObject compassInternal;
+        private SpriteRenderer sr;
+        private Color color;
 
         private Func<bool> Condition;
 
@@ -39,9 +42,10 @@ namespace OrbTracker
             DontDestroyOnLoad(dc.compassInternal);
             dc.compassInternal.layer = 18;
 
-            SpriteRenderer sr = dc.compassInternal.GetComponent<SpriteRenderer>();
-            sr.sprite = sprite;
-            sr.color = color;
+            dc.sr = dc.compassInternal.GetComponent<SpriteRenderer>();
+            dc.sr.sprite = sprite;
+
+            dc.color = color;
 
             dc.compassInternal.transform.parent = compass.transform;
             dc.compassInternal.transform.localScale = Vector3.one * scale;
@@ -98,6 +102,8 @@ namespace OrbTracker
 
                 transform.localPosition = dir;
                 transform.eulerAngles = new(0, 0, angle);
+                transform.localScale = dir.magnitude / radius * Vector2.one;
+                sr.color = dir.magnitude / radius * color;
 
                 compassInternal.SetActive(true);
             }
